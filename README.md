@@ -116,8 +116,8 @@ python visio_draw.py layout.json wiring.vsdx
 
 ## 6. Editing in Visio
 
-- Each device box has Shape Data `RefDes` and `Description`. Each wire has `WireID`, `Signal`, `Color` and `Gauge` (right-click > Data > Shape Data).
-- Pins are small shapes inside the box; connectors are glued to them, so moving a box keeps the wires attached.
+- Each device is a group (box plus pin labels) with Shape Data `RefDes` and `Description`. Each wire has `WireID`, `Signal`, `Color` and `Gauge` (right-click > Data > Shape Data).
+- Every pin has a connection point on the edge of its device, and each wire is glued to the two connection points it joins. Drag a device and its wires follow; drag a wire end to another connection point to re-route it.
 - The layout puts each pin on the side facing the device it connects to. A wire that skips a column can pass over a box in between; drag the connector's elbow to fix it.
 
 ## Limitations

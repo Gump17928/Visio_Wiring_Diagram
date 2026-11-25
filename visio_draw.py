@@ -15,6 +15,7 @@ SEC_CONNECTION_PTS = 7
 ROW_LAST = -2
 SEC_PROP = 243
 ALIGN_LEFT, ALIGN_RIGHT = 0, 2
+SELECT = 2  # visSelect
 PIN_H = 0.22
 
 
@@ -33,16 +34,16 @@ def draw(layout, out_path):
     page.PageSheet.CellsU("PageWidth").FormulaU = f"{layout['page']['width']} in"
     page.PageSheet.CellsU("PageHeight").FormulaU = f"{page_h} in"
 
-    pins = {}  # (ref, pin) -> (pin shape, connection point row)
+    window = app.ActiveWindow
+    pins = {}  # (ref, pin) -> (device group shape, connection point row)
     for d in layout["devices"]:
         left, right = d["x"], d["x"] + d["w"]
         box = page.DrawRectangle(left, page_h - d["y"] - d["h"], right, page_h - d["y"])
-        box.Name = d["ref"]
+        box.Name = f"{d['ref']} body"
         box.Text = f"{d['ref']}\n{d['description']}".strip()
         box.CellsU("VerticalAlign").FormulaU = "0"  # header text at the top
         box.CellsU("FillForegnd").FormulaU = "RGB(255,255,255)"
-        _set_prop(box, "RefDes", d["ref"])
-        _set_prop(box, "Description", d["description"])
+        members = [box]
 
         for p in d["pins"]:
             is_right = p["side"] == "right"
@@ -58,10 +59,22 @@ def draw(layout, out_path):
             pin.CellsU("Char.Size").FormulaU = "7 pt"
             pin.CellsU("LeftMargin").FormulaU = "0.06 in"
             pin.CellsU("RightMargin").FormulaU = "0.06 in"
-            row = pin.AddRow(SEC_CONNECTION_PTS, ROW_LAST, 0)
-            pin.CellsSRC(SEC_CONNECTION_PTS, row, 0).FormulaU = "Width*1" if is_right else "Width*0"
-            pin.CellsSRC(SEC_CONNECTION_PTS, row, 1).FormulaU = "Height*0.5"
-            pins[(d["ref"], p["number"])] = (pin, row)
+            members.append(pin)
+
+        # Group box + pin labels so they move together, then add one connection point per
+        # pin on the group's edge (Visio y runs upward, layout y runs downward).
+        window.DeselectAll()
+        for m in members:
+            window.Select(m, SELECT)
+        group = window.Selection.Group()
+        group.Name = d["ref"]
+        _set_prop(group, "RefDes", d["ref"])
+        _set_prop(group, "Description", d["description"])
+        for p in d["pins"]:
+            row = group.AddRow(SEC_CONNECTION_PTS, ROW_LAST, 0)
+            group.CellsSRC(SEC_CONNECTION_PTS, row, 0).FormulaU = "Width*1" if p["side"] == "right" else "Width*0"
+            group.CellsSRC(SEC_CONNECTION_PTS, row, 1).FormulaU = f"Height*{1 - p['dy'] / d['h']:.6f}"
+            pins[(d["ref"], p["number"])] = (group, row)
 
     connector_tool = app.ConnectorToolDataObject
     for w in layout["wires"]:
