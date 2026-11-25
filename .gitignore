@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+layout.json
+preview.png
+*.vsdx
+*.vsd
+~$*
