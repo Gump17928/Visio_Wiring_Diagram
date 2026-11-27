@@ -74,17 +74,23 @@ def draw(layout, out_path):
         for p in d["pins"]:
             row = group.AddRow(SEC_CONNECTION_PTS, ROW_LAST, 0)
             pins[(d["ref"], p["number"])] = (group, row)
+            # look the label up after grouping; its ID can change when it is grouped
+            label = group.Shapes.ItemU(f"{d['ref']}.{p['number']}")
             try:
-                # look the label up after grouping; its ID can change when it is grouped
-                label = group.Shapes.ItemU(f"{d['ref']}.{p['number']}")
                 src = f"Sheet.{label.ID}!PinX"
                 group.CellsSRC(SEC_CONNECTION_PTS, row, 0).FormulaU = f"IF({src}<Width*0.5,0,Width)"
                 group.CellsSRC(SEC_CONNECTION_PTS, row, 1).FormulaU = f"Sheet.{label.ID}!PinY"
-                label.CellsU("Para.HorzAlign").FormulaU = f"IF(PinX<Parent!Width*0.5,{ALIGN_LEFT},{ALIGN_RIGHT})"
             except Exception as e:  # fall back to a fixed connection point at the layout position
                 print(f"warning: could not link {d['ref']}.{p['number']} to its label ({e}); using a fixed point")
                 group.CellsSRC(SEC_CONNECTION_PTS, row, 0).FormulaU = "Width*1" if p["side"] == "right" else "Width*0"
                 group.CellsSRC(SEC_CONNECTION_PTS, row, 1).FormulaU = f"Height*{1 - p['dy'] / d['h']:.6f}"
+            try:
+                # sub-shapes can't reference their parent by name, only as Sheet.<ID>
+                label.CellsU("Para.HorzAlign").FormulaU = (
+                    f"IF(PinX<Sheet.{group.ID}!Width*0.5,{ALIGN_LEFT},{ALIGN_RIGHT})"
+                )
+            except Exception as e:  # cosmetic only; the label keeps its original alignment
+                print(f"warning: could not auto-align label {d['ref']}.{p['number']} ({e})")
 
     connector_tool = app.ConnectorToolDataObject
     for w in layout["wires"]:
