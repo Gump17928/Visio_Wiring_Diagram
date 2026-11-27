@@ -62,7 +62,8 @@ def draw(layout, out_path):
             members.append(pin)
 
         # Group box + pin labels so they move together, then add one connection point per
-        # pin on the group's edge (Visio y runs upward, layout y runs downward).
+        # pin. Each connection point is driven by its label's position: Y follows the label,
+        # X snaps to the nearest side of the box. Drag a label and its wire follows.
         window.DeselectAll()
         for m in members:
             window.Select(m, SELECT)
@@ -72,9 +73,18 @@ def draw(layout, out_path):
         _set_prop(group, "Description", d["description"])
         for p in d["pins"]:
             row = group.AddRow(SEC_CONNECTION_PTS, ROW_LAST, 0)
-            group.CellsSRC(SEC_CONNECTION_PTS, row, 0).FormulaU = "Width*1" if p["side"] == "right" else "Width*0"
-            group.CellsSRC(SEC_CONNECTION_PTS, row, 1).FormulaU = f"Height*{1 - p['dy'] / d['h']:.6f}"
             pins[(d["ref"], p["number"])] = (group, row)
+            try:
+                # look the label up after grouping; its ID can change when it is grouped
+                label = group.Shapes.ItemU(f"{d['ref']}.{p['number']}")
+                src = f"Sheet.{label.ID}!PinX"
+                group.CellsSRC(SEC_CONNECTION_PTS, row, 0).FormulaU = f"IF({src}<Width*0.5,0,Width)"
+                group.CellsSRC(SEC_CONNECTION_PTS, row, 1).FormulaU = f"Sheet.{label.ID}!PinY"
+                label.CellsU("Para.HorzAlign").FormulaU = f"IF(PinX<Parent!Width*0.5,{ALIGN_LEFT},{ALIGN_RIGHT})"
+            except Exception as e:  # fall back to a fixed connection point at the layout position
+                print(f"warning: could not link {d['ref']}.{p['number']} to its label ({e}); using a fixed point")
+                group.CellsSRC(SEC_CONNECTION_PTS, row, 0).FormulaU = "Width*1" if p["side"] == "right" else "Width*0"
+                group.CellsSRC(SEC_CONNECTION_PTS, row, 1).FormulaU = f"Height*{1 - p['dy'] / d['h']:.6f}"
 
     connector_tool = app.ConnectorToolDataObject
     for w in layout["wires"]:
