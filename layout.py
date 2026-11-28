@@ -143,7 +143,7 @@ def build_layout(devices, wires):
                 "signal": w.signal,
                 "color": w.color,
                 "gauge": w.gauge,
-                "label": " ".join(x for x in (w.id, w.signal, w.color, w.gauge) if x),
+                "label": " ".join(x for x in (w.id, w.signal) if x),
             }
             for w in wires
         ],

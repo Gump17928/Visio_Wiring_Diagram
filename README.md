@@ -69,7 +69,7 @@ Use one workbook with two sheets named `Devices` and `Wires`, or two separate wo
 | W3 | PLC1 | 3 | K1 | A1 | K1_CMD | ORG | 20AWG |
 
 - `WireID`, `FromRef`, `FromPin`, `ToRef`, `ToPin` are required. `Signal`, `Color`, `Gauge` are optional.
-- The connector is labeled with the ID, signal, color and gauge.
+- The connector label shows the wire ID and signal by default; color and gauge can be switched on in Visio (see [Wire labels](#wire-labels)).
 - The line takes its color from the first word of `Color`. Known names (`RED`, `BLK`, `BLU`, `GRN`, `YEL`, `ORG`, `WHT`, `BRN`, `VIO`, `GRY` and their long forms) are in [colors.py](colors.py); unknown colors draw black. Edit that file to add your own.
 
 ## 4. Build
@@ -121,6 +121,29 @@ python visio_draw.py layout.json wiring.vsdx
 - Each connection point is linked to its pin label. To move a pin, click the device, click the pin label again to select it inside the group, and drag it anywhere in the box: the connection point and its wire follow, and it snaps to whichever side of the box the label is nearer to (the label text aligns to that side too). Visio can't drag a connection point itself, so the label is the handle.
 - The layout puts each pin on the side facing the device it connects to. A wire that skips a column can pass over a box in between; drag the connector's elbow to fix it.
 
+### Wire labels
+
+Wire labels are live: each one is built from the wire's Shape Data and four switches stored on the page.
+
+- **Choose what every label shows:** click an empty part of the page, open **Data > Shape Data Window**, and set `Show wire WireID`, `Show wire Signal`, `Show wire Color` and `Show wire Gauge` to TRUE or FALSE. All wires on the page update at once. By default only the ID and signal are shown.
+- **Change one wire:** select it and edit its `WireID`, `Signal`, `Color` or `Gauge` in the Shape Data window; its label updates. (The line color doesn't change; set that with Line Color.)
+- Typing directly over a wire's label replaces the live label with plain text for that wire. Run `relabel.py` to restore it.
+
+**Drawings made before live labels** have plain-text labels. Convert them without regenerating:
+
+```powershell
+python relabel.py wiring.vsdx    # opens, updates and saves the file
+python relabel.py                # updates the drawing open in Visio; save it yourself
+```
+
+This only touches wire labels (it adds the page switches and rebuilds each wire's text); your box positions and routing are kept.
+
+### Box titles
+
+The device name and description are ordinary text on the box. To edit them, click the device, click the box again to select it inside the group, then double-click (or press F2) and type; Enter adds a new line. You can also put line breaks in the spreadsheet's `Description` cell (Alt+Enter in Excel).
+
+The header area is sized for two lines, so extra lines overlap the top pin labels: drag the box taller, or move those labels down (their wires follow). Editing the box text doesn't change the device's `Description` Shape Data.
+
 ## Limitations
 
 - Each run draws a **new** drawing. It does not update one you've edited by hand, so keep hand edits in the generated file and re-run only when the netlist changes substantially.
@@ -136,5 +159,6 @@ python visio_draw.py layout.json wiring.vsdx
 | `layout.py` | automatic layout (layered, left to right) |
 | `preview.py` | writes the PNG preview |
 | `visio_draw.py` | draws the layout in Visio via COM |
+| `relabel.py` | converts wire labels on an existing drawing to live labels |
 | `colors.py` | wire color names to RGB |
 | `make_sample.py` | creates `wiring_sample.xlsx` |

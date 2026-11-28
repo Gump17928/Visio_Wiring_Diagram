@@ -16,14 +16,50 @@ ROW_LAST = -2
 SEC_PROP = 243
 ALIGN_LEFT, ALIGN_RIGHT = 0, 2
 SELECT = 2  # visSelect
+PROP_TYPE_BOOL = 3
+FMT_STR_NORMAL = 37  # visFmtStrNormal
 PIN_H = 0.22
+
+# Wire Shape Data rows: (row name, layout key, shown in the label by default)
+WIRE_FIELDS = (("WireID", "id", True), ("Signal", "signal", True), ("Color", "color", False), ("Gauge", "gauge", False))
+
+
+def _q(value):
+    return '"' + str(value).replace('"', '""') + '"'
 
 
 def _set_prop(shape, name, value):
     if not value:
         return
     shape.AddNamedRow(SEC_PROP, name, 0)
-    shape.CellsU(f"Prop.{name}").FormulaU = '"' + str(value).replace('"', '""') + '"'
+    shape.CellsU(f"Prop.{name}").FormulaU = _q(value)
+
+
+def _ensure_prop(sheet, name, label=None, type_=None, default=None):
+    """Create Prop.<name> if missing (setting label/type/default); never overwrite an existing row."""
+    if sheet.CellExistsU(f"Prop.{name}", 0):
+        return
+    sheet.AddNamedRow(SEC_PROP, name, 0)
+    if label:
+        sheet.CellsU(f"Prop.{name}.Label").FormulaU = _q(label)
+    if type_ is not None:
+        sheet.CellsU(f"Prop.{name}.Type").FormulaU = str(type_)
+    if default is not None:
+        sheet.CellsU(f"Prop.{name}").FormulaU = default
+
+
+def add_label_toggles(page):
+    """Page Shape Data switches (Show WireID / Signal / Color / Gauge) used by every wire label."""
+    for name, _, shown in WIRE_FIELDS:
+        _ensure_prop(page.PageSheet, f"Show{name}", f"Show wire {name}", PROP_TYPE_BOOL, "TRUE" if shown else "FALSE")
+
+
+def set_live_label(conn):
+    """Replace a wire's text with a field built from its Shape Data and the page toggles."""
+    for name, _, _ in WIRE_FIELDS:
+        _ensure_prop(conn, name, default='""')
+    formula = "&".join(f'IF(ThePage!Prop.Show{name},Prop.{name}&" ","")' for name, _, _ in WIRE_FIELDS)
+    conn.Characters.AddCustomFieldU(formula, FMT_STR_NORMAL)
 
 
 def draw(layout, out_path):
@@ -33,6 +69,7 @@ def draw(layout, out_path):
     page_h = layout["page"]["height"]
     page.PageSheet.CellsU("PageWidth").FormulaU = f"{layout['page']['width']} in"
     page.PageSheet.CellsU("PageHeight").FormulaU = f"{page_h} in"
+    add_label_toggles(page)
 
     window = app.ActiveWindow
     pins = {}  # (ref, pin) -> (device group shape, connection point row)
@@ -100,13 +137,13 @@ def draw(layout, out_path):
         conn.CellsU("BeginX").GlueTo(a.CellsSRC(SEC_CONNECTION_PTS, a_row, 0))
         conn.CellsU("EndX").GlueTo(b.CellsSRC(SEC_CONNECTION_PTS, b_row, 0))
         conn.Name = f"Wire {w['id']}"
-        conn.Text = w["label"]
         r, g, bl = rgb(w["color"])
         conn.CellsU("LineColor").FormulaU = f"RGB({r},{g},{bl})"
         conn.CellsU("EndArrow").FormulaU = "0"
         conn.CellsU("Char.Size").FormulaU = "7 pt"
-        for key, name in (("id", "WireID"), ("signal", "Signal"), ("color", "Color"), ("gauge", "Gauge")):
-            _set_prop(conn, name, w[key])
+        for name, key, _ in WIRE_FIELDS:
+            _ensure_prop(conn, name, default=_q(w[key]))
+        set_live_label(conn)
 
     doc.SaveAs(os.path.abspath(out_path))
     return doc
